@@ -80,8 +80,10 @@ export default function ChatModule() {
             const json = line.slice(6);
             try {
               const parsed = JSON.parse(json);
-              if (parsed.choices?.[0]?.finish_reason) {
+              if (parsed.usage) {
                 currentUsage = parsed.usage;
+              }
+              if (parsed.choices?.[0]?.finish_reason) {
                 continue;
               }
               const delta = parsed.choices?.[0]?.delta;
