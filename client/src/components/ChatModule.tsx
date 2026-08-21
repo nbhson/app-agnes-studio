@@ -211,9 +211,7 @@ export default function ChatModule() {
                         ? <CodeBlock className={className} {...rest}>{children}</CodeBlock>
                         : <code className="bg-agnes-surface px-1 py-0.5 rounded text-xs font-mono text-agnes-accentLight" {...rest}>{children}</code>;
                     },
-                    pre({ children, ...rest }: any) {
-                      return <pre {...rest}>{children}</pre>;
-                    },
+
                     ul: ({ children, ...rest }: any) => <ul className="list-disc pl-4 my-1 space-y-0.5" {...rest}>{children}</ul>,
                     ol: ({ children, ...rest }: any) => <ol className="list-decimal pl-4 my-1 space-y-0.5" {...rest}>{children}</ol>,
                     a: ({ children, href, ...rest }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-agnes-accentLight underline hover:no-underline" {...rest}>{children}</a>,
