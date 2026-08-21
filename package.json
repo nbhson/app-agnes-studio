@@ -1,0 +1,17 @@
+{
+  "name": "agnes-studio",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start"
+  },
+  "packageManager": "npm@11.9.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}
