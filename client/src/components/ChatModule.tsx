@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import { Loader2, Copy, Check, Send, Bot, Sparkles, RefreshCw, Brain, BarChart3 } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
+import 'highlight.js/styles/github-dark.min.css';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -127,6 +131,21 @@ export default function ChatModule() {
 
   const usagePct = Math.min((stats.totalTokens / CONTEXT_WINDOW) * 100, 100);
 
+  const CodeBlock = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const lang = match ? match[1] : '';
+    return (
+      <div className="relative group">
+        {lang && (
+          <span className="absolute top-2 right-2 text-[10px] text-agnes-muted bg-agnes-surface px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+            {lang}
+          </span>
+        )}
+        <pre className="!my-2 !rounded-lg !bg-[#0d1117] !p-4 !overflow-x-auto"><code className={className}>{children}</code></pre>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 py-4 border-b border-agnes-border flex items-center justify-between">
@@ -163,7 +182,7 @@ export default function ChatModule() {
           <div className="text-center py-12 opacity-40">
             <Bot size={48} className="mx-auto mb-3" />
             <p className="text-sm text-agnes-text">Start a conversation with Agnes</p>
-            <p className="text-xs text-agnes-muted mt-1">Supports streaming, multi-turn conversations &amp; thinking mode</p>
+            <p className="text-xs text-agnes-muted mt-1">Supports streaming, multi-turn conversations, thinking mode &amp; markdown</p>
           </div>
         )}
         {messages.map(msg => (
@@ -180,7 +199,29 @@ export default function ChatModule() {
               )}
               <div className="flex items-start gap-2">
                 {msg.role === 'assistant' && <Bot size={16} className="mt-0.5 text-agnes-accentLight shrink-0" />}
-                <p className="text-sm whitespace-pre-wrap break-words">{msg.content || (msg.reasoning ? '(thinking...)' : '')}</p>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{
+                    code({ children, className, node, ...rest }: any) {
+                      const match = /language-(\w+)/.exec(className || '');
+                      return match
+                        ? <CodeBlock className={className} {...rest}>{children}</CodeBlock>
+                        : <code className="bg-agnes-surface px-1 py-0.5 rounded text-xs font-mono text-agnes-accentLight" {...rest}>{children}</code>;
+                    },
+                    pre({ children, ...rest }: any) {
+                      return <pre {...rest}>{children}</pre>;
+                    },
+                    ul: ({ children, ...rest }: any) => <ul className="list-disc pl-4 my-1 space-y-0.5" {...rest}>{children}</ul>,
+                    ol: ({ children, ...rest }: any) => <ol className="list-decimal pl-4 my-1 space-y-0.5" {...rest}>{children}</ol>,
+                    a: ({ children, href, ...rest }: any) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-agnes-accentLight underline hover:no-underline" {...rest}>{children}</a>,
+                    table: ({ children, ...rest }: any) => <div className="overflow-x-auto my-1"><table className="text-xs border-collapse border border-agnes-border" {...rest}>{children}</table></div>,
+                    th: ({ children, ...rest }: any) => <th className="border border-agnes-border px-2 py-1 bg-agnes-surface font-medium" {...rest}>{children}</th>,
+                    td: ({ children, ...rest }: any) => <td className="border border-agnes-border px-2 py-1" {...rest}>{children}</td>,
+                  }}
+                >
+                  {msg.content || (msg.reasoning ? '(thinking...)' : '')}
+                </ReactMarkdown>
               </div>
               {msg.role === 'assistant' && msg.usage && (
                 <div className="mt-2 flex items-center gap-3 text-[10px] text-agnes-muted font-mono">
