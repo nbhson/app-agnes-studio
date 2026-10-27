@@ -1,3 +1,4 @@
+import { API_BASE_URL, apiHeaders } from '../config';
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -59,9 +60,9 @@ export default function ChatModule() {
       if (thinkingEnabled) {
         body.chat_template_kwargs = { enable_thinking: true };
       }
-      const resp = await fetch('http://localhost:3001/v1/chat/completions', {
+      const resp = await fetch(`${API_BASE_URL}/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
         signal: abortRef.current.signal,
       });

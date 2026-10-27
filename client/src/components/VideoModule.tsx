@@ -1,3 +1,4 @@
+import { API_BASE_URL, apiHeaders } from '../config';
 import { useState, useEffect, useRef } from 'react';
 import { Download, Video as VideoIcon, Copy, Check, Film, Loader2, BarChart3, Layers, Clock } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
@@ -47,7 +48,7 @@ export default function VideoModule() {
   const startPolling = (videoId: string, taskId: string) => {
     const poll = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/agnesapi?video_id=${videoId}`);
+        const res = await fetch(`${API_BASE_URL}/agnesapi?video_id=${videoId}`);
         if (!res.ok) return;
         const data = await res.json();
         setTasks(prev => {
@@ -103,9 +104,9 @@ export default function VideoModule() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/v1/videos', {
+      const response = await fetch(`${API_BASE_URL}/v1/videos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
       });
 

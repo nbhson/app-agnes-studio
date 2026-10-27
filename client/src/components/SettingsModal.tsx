@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSettings } from '../SettingsContext';
+import { API_BASE_URL } from '../config';
 
 interface Props {
   open: boolean;
@@ -29,7 +30,7 @@ export default function SettingsModal({ open, onClose }: Props) {
             <label className="block text-sm font-medium text-agnes-text mb-2">API Base URL</label>
             <input
               type="text"
-              value="http://localhost:3001"
+              value={API_BASE_URL}
               disabled
               className="w-full bg-agnes-surface border border-agnes-border rounded-lg px-4 py-2.5 text-sm text-agnes-muted cursor-not-allowed"
             />

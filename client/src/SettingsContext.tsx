@@ -1,3 +1,4 @@
+import { API_BASE_URL, apiHeaders } from './config';
 import { createContext, useContext, useState, useCallback } from 'react';
 
 interface SettingsContextType {
@@ -10,7 +11,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType>({
   apiKey: '',
   setApiKey: () => {},
-  apiUrl: 'http://localhost:3001',
+  apiUrl: API_BASE_URL,
   hasApiKey: false,
 });
 
@@ -22,15 +23,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setApiKey = useCallback((key: string) => {
     setApiKeyState(key);
     localStorage.setItem('agnes_api_key', key);
-    fetch('http://localhost:3001/api/key', {
+    fetch(`${API_BASE_URL}/api/key`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ key }),
     }).catch(console.error);
   }, []);
 
   return (
-    <SettingsContext.Provider value={{ apiKey, setApiKey, apiUrl: 'http://localhost:3001', hasApiKey: !!apiKey }}>
+    <SettingsContext.Provider value={{ apiKey, setApiKey, apiUrl: API_BASE_URL, hasApiKey: !!apiKey }}>
       {children}
     </SettingsContext.Provider>
   );

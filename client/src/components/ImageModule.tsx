@@ -1,3 +1,4 @@
+import { API_BASE_URL, apiHeaders } from '../config';
 import { useState } from 'react';
 import { Download, Loader2, Image as ImageIcon, Copy, Check, RefreshCw, BarChart3, Layers } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
@@ -52,9 +53,9 @@ export default function ImageModule() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/v1/images/generations', {
+      const response = await fetch(`${API_BASE_URL}/v1/images/generations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
       });
 
