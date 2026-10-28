@@ -48,7 +48,10 @@ export default function VideoModule() {
   const startPolling = (videoId: string, taskId: string) => {
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/agnesapi?video_id=${videoId}`);
+        const res = await fetch(
+          `${API_BASE_URL}/agnesapi?video_id=${encodeURIComponent(videoId)}`,
+          { headers: apiHeaders() }, // thiếu apiHeaders trước đây → poll 401 khi PROXY_TOKEN bật
+        );
         if (!res.ok) return;
         const data = await res.json();
         setTasks(prev => {
@@ -224,7 +227,7 @@ export default function VideoModule() {
                 value={imageUrls}
                 onChange={(e) => setImageUrls(e.target.value)}
                 placeholder={mode === 'keyframes'
-                  ? 'https://example.com/kf1.png\\nhttps://example.com/kf2.png'
+                  ? 'https://example.com/kf1.png\nhttps://example.com/kf2.png'
                   : 'https://example.com/image.png'}
                 rows={3}
                 className="w-full bg-agnes-surface border border-agnes-border rounded-lg px-4 py-3 text-sm text-white placeholder-agnes-muted/50 focus:outline-none focus:border-agnes-accent focus:ring-1 focus:ring-agnes-accent resize-none"

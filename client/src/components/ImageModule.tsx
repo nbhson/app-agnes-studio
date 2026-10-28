@@ -49,7 +49,9 @@ export default function ImageModule() {
     }
 
     if (negativePrompt.trim()) {
-      body.prompt = `${negativePrompt.trim()}\n${prompt.trim()}`;
+      // Gửi đúng field `negative_prompt` của API — trước đây nối vào `prompt`,
+      // tức là NỘI DUNG CẦN TRÁNH được đưa vào làm prompt chính.
+      (body.extra_body as Record<string, unknown>).negative_prompt = negativePrompt.trim();
     }
 
     try {

@@ -41,7 +41,8 @@ function AppContent() {
           {activeModule === 'video' && <VideoModule />}
         </div>
       </main>
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {settingsOpen && <SettingsModal open onClose={() => setSettingsOpen(false)} />}
+
     </div>
   );
 }

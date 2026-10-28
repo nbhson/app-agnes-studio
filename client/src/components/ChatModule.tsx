@@ -24,6 +24,22 @@ interface SessionStats {
 
 const CONTEXT_WINDOW = 524288;
 
+// Hoist ra khỏi component: định nghĩa trong body làm remount code block mỗi render.
+function CodeBlock({ children, className }: { children: React.ReactNode; className?: string }) {
+  const match = /language-(\w+)/.exec(className || '');
+  const lang = match ? match[1] : '';
+  return (
+    <div className="relative group">
+      {lang && (
+        <span className="absolute top-2 right-2 text-[10px] text-agnes-muted bg-agnes-surface px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+          {lang}
+        </span>
+      )}
+      <pre className="!my-2 !rounded-lg !bg-[#0d1117] !p-4 !overflow-x-auto"><code className={className}>{children}</code></pre>
+    </div>
+  );
+}
+
 export default function ChatModule() {
   const { hasApiKey } = useSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -40,14 +56,18 @@ export default function ChatModule() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Unmount: hủy stream đang chạy — trước đây stream tiếp tục + setState
+  // trên component đã unmount.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const handleSend = async () => {
     if (!input.trim() || loading || !hasApiKey) return;
-    const userMsg: ChatMessage = { role: 'user', content: input.trim(), id: Date.now().toString() };
+    const userMsg: ChatMessage = { role: 'user', content: input.trim(), id: crypto.randomUUID() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
     setError(null);
-    const assistantId = (Date.now() + 1).toString();
+    const assistantId = crypto.randomUUID();
     setMessages(prev => [...prev, { role: 'assistant', content: '', reasoning: '', id: assistantId }]);
     abortRef.current = new AbortController();
     try {
@@ -66,17 +86,27 @@ export default function ChatModule() {
         body: JSON.stringify(body),
         signal: abortRef.current.signal,
       });
-      if (!resp.ok) throw new Error('Request failed');
+      if (!resp.ok) {
+        // Đọc body lỗi (giống Image/Video module) — "Request failed" trần
+        // khiến user không bao giờ biết tại sao generation fail.
+        const detail = await resp.text().catch(() => '');
+        throw new Error(`Request failed (${resp.status}): ${resp.statusText}${resp.status === 401 ? ' — kiểm tra API key trong Settings' : ''}${detail ? `: ${detail.slice(0, 300)}` : ''}`);
+      }
       const reader = resp.body!.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
       let reasoningContent = '';
       let currentUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = null;
+      let sseBuffer = ''; // buffer across chunks — data: line bị cắt giữa 2 chunk trước đây bị drop lặng lẽ
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        for (const line of chunk.split('\n')) {
+        // stream:true — decode dần, giữ lại multi-byte UTF-8 (CJK/emoji) straddle chunk boundary.
+        const chunk = decoder.decode(value, { stream: true });
+        sseBuffer += chunk;
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() ?? ''; // dòng cuối có thể chưa hoàn chỉnh — giữ lại cho chunk sau
+        for (const line of lines) {
           if (line.startsWith('data: ')) {
             const json = line.slice(6);
             try {
@@ -133,21 +163,6 @@ export default function ChatModule() {
   };
 
   const usagePct = Math.min((stats.totalTokens / CONTEXT_WINDOW) * 100, 100);
-
-  const CodeBlock = ({ children, className }: { children: React.ReactNode; className?: string }) => {
-    const match = /language-(\w+)/.exec(className || '');
-    const lang = match ? match[1] : '';
-    return (
-      <div className="relative group">
-        {lang && (
-          <span className="absolute top-2 right-2 text-[10px] text-agnes-muted bg-agnes-surface px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity">
-            {lang}
-          </span>
-        )}
-        <pre className="!my-2 !rounded-lg !bg-[#0d1117] !p-4 !overflow-x-auto"><code className={className}>{children}</code></pre>
-      </div>
-    );
-  };
 
   return (
     <div className="flex h-full flex-col">
