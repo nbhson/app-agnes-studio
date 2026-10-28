@@ -33,7 +33,47 @@
 - **API key trong localStorage** (SettingsContext): đúng là đọc được bởi XSS/extension, nhưng đây là client thuần (SPA) không có session backend — thay thế bằng sessionStorage chỉ giảm nhẹ. Đã giảm bề mặt bằng cách khóa CORS + proxy token; lời khuyên dài hạn: gateway proxy giữ key, client không chạm key. Ghi lại follow-up.
 - **VideoModule polling stats** (completed count / totalDuration lệch): cosmetic stat logic, đổi nhiều mà ít giá trị — ghi nhận, không sửa đợt này.
 
-## Trạng thái
+## Round 2 (2026-10-29) — Deep review + enterprise upgrade
+
+### Kết quả Review đợt 2
+
+| # | Severity | Vị trí | Vấn đề | Fix |
+|---|----------|--------|--------|-----|
+| R2-1 | MAJOR | server/index.ts | 5 route proxy lặp lại cùng pattern fetch/error/timeout — mỗi fix bảo mật phải sửa 5 chỗ | Tách `proxyUpstream()` + `proxySse()` helpers; 1 chỗ duy nhất cho timeout/abort/error |
+| R2-2 | MAJOR | server/index.ts | Không security headers, không rate limit → proxy mở (PROXY_TOKEN unset) bị lạm dụng cạn key upstream | Middleware headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy) + in-memory token-bucket rate limiter theo IP |
+| R2-3 | MAJOR | server/index.ts | Không graceful shutdown (SIGTERM) — in-flight stream bị cắt lúc deploy | `server.close()` + drain |
+| R2-4 | MAJOR | client VideoModule | Poll loop sống sót qua unmount (await in-flight schedule setTimeout sau cleanup) + retry vô hạn khi lỗi network | Mounted ref + abort controller + cap 20 lỗi liên tiếp |
+| R2-5 | MAJOR | client ChatModule | `components` của ReactMarkdown tạo mới mỗi render → markdown tree remount mỗi token stream | Hoist ra module-level const |
+| R2-6 | MAJOR | client (3 module) | Duplicate: error parsing, textarea/input classes, module header, spinner | `lib/api.ts` (postJson/parseApiError) + `components/ui.tsx` (Field, TextArea, ErrorBanner, ModuleHeader) |
+| R2-7 | MINOR | server/index.ts | Warning `CLIENT_ORIGIN unset` là dead code (luôn có default); health endpoint thiếu uptime/version | Sửa warning logic; health trả uptime |
+| R2-8 | MINOR | server/index.ts | express.json() default 100KB — chat history dài / b64 img-to-img có thể 413 âm thầm | Limit tường minh 2MB |
+| R2-9 | MINOR | client SettingsModal | Không a11y: không Esc-close, không autofocus, label không `htmlFor`, không toggle show/hide key | Fix đủ bộ |
+| R2-10 | MINOR | client App/Sidebar | Không responsive — sidebar 256px cố định, hỏng trên mobile | Sidebar thu gọn icon-rail dưới `lg` |
+| R2-11 | NOTE | client toàn cục | Dark-only hardcoded hex; spacing/typography lệch nhau giữa module | CSS-variable design tokens (light+dark), theme toggle, spacing/typography chuẩn hóa |
+
+### Features mới (Round 2)
+
+- **F1 — Chat conversations**: multi-conversation persisted trong localStorage; tạo/đổi/xóa/đổi tên, tự đặt title từ tin nhắn đầu, giữ stats theo conversation.
+- **F2 — Stop / Regenerate**: nút Stop hủy stream giữa chừng (đã stream được giữ lại); Regenerate chạy lại turn cuối.
+- **F3 — Theme system**: Light/Dark toggle (default dark, persist localStorage, tôn trọng `prefers-color-scheme` lần đầu).
+- **F4 — Ops**: request logging + rate limiting + graceful shutdown ở proxy (đếm ở mục R2-2/R2-3).
+
+### Không sửa (đã cân nhắc)
+
+- API key vẫn trong localStorage (client thuần, không session backend) — giữ quyết định Round 1.
+- Không thêm deps mới (không helmet/rate-limiter npm) — logic nhỏ tự viết, tránh churn lockfile.
+- Không thêm test framework: dùng `node:test` có sẵn qua tsx cho pure logic (rate limiter, token compare, SSE line buffer).
+
+### Trạng thái Round 2
+
+- [x] Plan
+- [x] Server refactor + hardening + tests
+- [x] Client dedupe + theme + conversations + stop/regenerate + video polling fix
+- [x] Build `turbo build` green (server tsc + client tsc/vite)
+- [x] Tests green (server pure logic)
+- [x] Commits nhỏ, conventional, local-only
+
+## Trạng thái (Round 1)
 
 - [x] Plan
 - [x] Fix #1–#21
