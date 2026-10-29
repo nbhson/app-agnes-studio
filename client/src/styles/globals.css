@@ -2,14 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — RGB channels so Tailwind opacity modifiers compose.
+ * Default (no class / .dark): the original dark palette.
+ * .light overrides for the light theme (R2-11 / F3).
+ */
+:root,
+.dark {
+  --agnes-bg: 10 10 15;
+  --agnes-surface: 18 18 26;
+  --agnes-card: 26 26 46;
+  --agnes-border: 45 45 68;
+  --agnes-accent: 124 58 237;
+  --agnes-accent-light: 167 139 250;
+  --agnes-success: 16 185 129;
+  --agnes-warning: 245 158 11;
+  --agnes-error: 239 68 68;
+  --agnes-text: 226 232 240;
+  --agnes-heading: 248 250 252;
+  --agnes-muted: 148 163 184;
+  --agnes-scrollbar: 45 45 58;
+  --agnes-scrollbar-hover: 61 61 80;
+  color-scheme: dark;
+}
+
+.light {
+  --agnes-bg: 248 250 252;
+  --agnes-surface: 241 245 249;
+  --agnes-card: 255 255 255;
+  --agnes-border: 226 232 240;
+  --agnes-accent: 109 40 217;
+  --agnes-accent-light: 124 58 237;
+  --agnes-success: 5 150 105;
+  --agnes-warning: 217 119 6;
+  --agnes-error: 220 38 38;
+  --agnes-text: 51 65 85;
+  --agnes-heading: 15 23 42;
+  --agnes-muted: 100 116 139;
+  --agnes-scrollbar: 203 213 225;
+  --agnes-scrollbar-hover: 148 163 184;
+  color-scheme: light;
+}
+
 :root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 body {
   margin: 0;
-  background: #0a0a0f;
-  color: #e2e8f0;
+  background: rgb(var(--agnes-bg));
+  color: rgb(var(--agnes-text));
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 ::-webkit-scrollbar {
@@ -22,12 +65,22 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2d2d3a;
+  background: rgb(var(--agnes-scrollbar));
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3d3d50;
+  background: rgb(var(--agnes-scrollbar-hover));
+}
+
+/* Global focus ring — keyboard accessibility without restyling every input. */
+:focus-visible {
+  outline: 2px solid rgb(var(--agnes-accent));
+  outline-offset: 1px;
+}
+
+input[type='number']::-webkit-inner-spin-button {
+  opacity: 0.4;
 }
 
 @keyframes pulse-glow {
@@ -40,19 +93,19 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .animate-slide-up {
-  animation: slide-up 0.3s ease-out;
+  animation: slide-up 0.25s ease-out;
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 1.6s ease-in-out infinite;
 }
 
 .animate-spin-slow {
-  animation: spin-slow 3s linear infinite;
+  animation: spin 1.4s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
