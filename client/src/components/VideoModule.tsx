@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Download, Video as VideoIcon, Copy, Check, Film, Loader2, BarChart3, Layers, Clock, AlertTriangle } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
 import { postJson, getJson, parseUrlList } from '../lib/api';
+import { loadVideoTasks, saveVideoTasks } from '../lib/videoTasks';
 import { ModuleHeader, Field, TextArea, TextInput, ErrorBanner, EmptyState, SegmentedControl, StatChip } from './ui';
 
 type GenMode = 'text-to-video' | 'image-to-video' | 'keyframes';
 type VideoStatus = 'queued' | 'in_progress' | 'completed' | 'failed';
 
-interface VideoItem {
+export interface VideoItem {
   video_id: string;
   task_id: string;
   status: VideoStatus;
@@ -35,7 +36,12 @@ export default function VideoModule() {
   const [numFrames, setNumFrames] = useState(121);
   const [frameRate, setFrameRate] = useState(24);
   const [loading, setLoading] = useState(false);
-  const [tasks, setTasks] = useState<Map<string, VideoItem>>(new Map());
+  // Round 4: tasks persist across reloads; non-terminal ones resume polling.
+  const [tasks, setTasks] = useState<Map<string, VideoItem>>(() => {
+    const restored = new Map<string, VideoItem>();
+    for (const task of loadVideoTasks()) restored.set(task.task_id, task);
+    return restored;
+  });
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [totalTasks, setTotalTasks] = useState(0);
@@ -60,6 +66,13 @@ export default function VideoModule() {
       pollAborts.current.clear();
     };
   }, []);
+
+  // Round 4: persist task list on every change (quota handling in
+  // saveVideoTasks); non-terminal tasks restored from storage resume polling
+  // in the effect below, since upstream keeps processing after a reload.
+  useEffect(() => {
+    saveVideoTasks(tasks.values());
+  }, [tasks]);
 
   const patchTask = useCallback((taskId: string, patch: Partial<VideoItem>) => {
     setTasks((prev) => {
@@ -119,6 +132,19 @@ export default function VideoModule() {
     }
     if (!terminal) schedulePoll(videoId, taskId, POLL_INTERVAL_MS);
   }, [patchTask, failTask, schedulePoll]);
+
+  // Round 4: resume polling for non-terminal tasks restored from localStorage
+  // (upstream keeps processing after a reload). Runs once on mount.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    resumedRef.current = true;
+    for (const t of tasks.values()) {
+      if (t.status !== 'completed' && t.status !== 'failed') {
+        schedulePoll(t.video_id, t.task_id, POLL_INTERVAL_MS);
+      }
+    }
+  }, [schedulePoll, tasks]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || loading || !hasApiKey) return;

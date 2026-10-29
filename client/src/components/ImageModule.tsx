@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Loader2, Image as ImageIcon, Copy, Check, RefreshCw, BarChart3, Layers } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
 import { postJson, parseUrlList } from '../lib/api';
+import { loadImageResults, saveImageResults } from '../lib/imageHistory';
 import { ModuleHeader, Field, TextArea, TextInput, ErrorBanner, EmptyState, SegmentedControl, StatChip } from './ui';
 
 type SizeOption = '1024x1024' | '1024x768' | '768x1024' | '1920x1080' | '1080x1920';
@@ -16,7 +17,7 @@ const SIZES: { value: SizeOption; label: string; desc: string; pixels: number }[
 
 type Mode = 'text-to-image' | 'image-to-image';
 
-interface ImageResult {
+export interface ImageResult {
   url: string;
   b64: string;
   revisedPrompt: string;
@@ -32,11 +33,18 @@ export default function ImageModule() {
   const [negativePrompt, setNegativePrompt] = useState('');
   const [imageUrls, setImageUrls] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ImageResult[]>([]);
+  // Round 4: results persist across reloads (URL-based; b64 stays session-only).
+  const [results, setResults] = useState<ImageResult[]>(() => loadImageResults());
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [totalImages, setTotalImages] = useState(0);
   const [totalPixels, setTotalPixels] = useState(0);
+
+  // Persist on change — quota handling lives in saveImageResults (trims on
+  // QuotaExceededError, gives up silently as last resort).
+  useEffect(() => {
+    saveImageResults(results);
+  }, [results]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || loading || !hasApiKey) return;
