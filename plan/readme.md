@@ -97,6 +97,41 @@ verify:
   nếu deploy sau reverse proxy; image results / video tasks chưa persist qua reload.
 - Build: `turbo build` green (2/2). Tests: `npm test` server 8/8 pass.
 
+## Round 4 (2026-10-29) — Reverse-proxy support, persistence, bug fixes
+
+### Việc đã làm
+
+| # | Việc | Commit |
+|---|------|--------|
+| R4-1 | **TRUST_PROXY** (risk #1 Round 2): đọc `TRUST_PROXY` env (hop count / CIDR list / shorthand `loopback|linklocal|uniquelocal` / `true`) → `app.set('trust proxy')`. Default vẫn `false` — `req.ip` là socket address, X-Forwarded-For bị bỏ qua → không thể spoof để né rate limit khi exposure trực tiếp. Rate limiter tự theo `req.ip`, không cần sửa gì thêm. Health endpoint trả `trustProxy`. | d6f9888 |
+| R4-2 | **BUG (đã verify thực nghiệm)**: client-disconnect detection trong `forwardSse` là **dead code** — từ Node ≥16, `req.on('close')` bắn ngay khi request body được consume (~1ms sau `express.json()`), TRƯỚC khi handler kịp gắn listener → không bao giờ fire → upstream leak connection khi client hangup (đúng lỗi R1-#4 tưởng đã fix). Fix: `res.on('close')` + `!writableEnded` (fire đúng 1 lần per response). Đồng thời wire client-abort signal vào các route `forwardJson` (responses/images/videos/agnesapi) — trước đó chỉ SSE có abort, JSON route chạy nhiều phút với client đã ngắt. | d6f9888 |
+| R4-3 | Extract `createApp()` factory (`app.ts`); `index.ts` chỉ còn boot (dotenv/listen/shutdown). Options inject được: `trustProxy`, `apiBaseUrl`, `rateLimitMax`, `keyMgmtMax`, `apiBaseUrl`… → test được thật request không cần mutate env. | d6f9888 |
+| R4-2t | **Tests mới (11)**: `trust-proxy.test.ts` 6 test parse; `app.test.ts` 5 test integration (app thật trên port 0 + mock upstream SSE): (1) tắt trust proxy → XFF bị ignore (spoof không bypass limiter), (2) bật `trustProxy:1` → limiter key theo XFF thật, (3) client ngắt giữa SSE → upstream bị abort, (4) stream hoàn thành bình thường khi client đọc hết, (5) health báo `trustProxy`. | d6f9888 |
+| R4-2c | **Persistence image/video** (risk #2 Round 2) — chọn **localStorage** (server stateless by design, key in-memory; server-side persistence sẽ kéo theo câu hỏi auth/state): `lib/imageHistory.ts` (URL-based results, cap 30, **strip b64 khi lưu** — data URL ~1–2MB/ảnh sẽ nổ quota; b64-only là session-only), `lib/videoTasks.ts` (tasks + video URL; task non-terminal **resume polling** khi mount vì upstream vẫn chạy tiếp sau reload). Defensive parse + trim-nửa-mới-khi-quota + give-up-silently, cùng pattern `conversations.ts`. | a92e8a5 |
+| R4-3 | **Bug (client)**: key chỉ sync lên server khi user bấm Save — server restart/reload trang xong client vẫn có key (localStorage) nhưng proxy rỗng (in-memory) → mọi request fail cho tới khi nhập lại. Boot sync fire-and-forget 1 lần. Đồng thời bổ sung `.env.example` (TRUST_PROXY, PROXY_TOKEN, CLIENT_ORIGIN, BODY_LIMIT). | cc54be0 |
+
+### Kiểm chứng thực nghiệm (bug R4-2)
+
+Script `node -e` tái hiện SSE POST + `express.json()` trên Node hiện tại:
+- `req.close` bắn tại **t=1ms** với `writableEnded=false` (khi message hoàn tất — thay đổi semantics Node ≥16), listener gắn trong handler luôn đến muộn.
+- `res.close` chỉ bắn khi response kết thúc thật sự (hoặc client ngắt, `writableEnded=false`).
+→ Test integration xác nhận: fix mới abort upstream khi client disconnect, không abort khi stream chạy bình thường.
+
+### Trạng thái Round 4
+
+- [x] TRUST_PROXY + tests with/without X-Forwarded-For (integration, không spoof được khi tắt trust)
+- [x] Persistence image results + video tasks (localStorage, quota-aware, resume polling)
+- [x] Bug fixes: dead client-disconnect detection (SSE + JSON routes), API-key boot sync
+- [x] `turbo build` 2/2 green; server tests 19/19; tsc clean
+- [x] Commits conventional, **local only** (chưa push)
+
+### Còn lại / follow-up
+
+- `request.ip` trust proxy đúng nghĩa chỉ khi reverse proxy set `X-Forwarded-For` và strip/append đúng — docs khuyến nghị chỉ bật TRUST_PROXY khi chắc chắn topology.
+- CORS vẫn allowlist localhost mặc định; khi deploy cần set `CLIENT_ORIGIN` + `PROXY_TOKEN` (đã ghi trong `.env.example`).
+- Video/image stats (totalTasks/completedTasks/totalPixels) vẫn session-only — cố ý, tránh đếm kép khi resume polling sau reload.
+- Code-split client (chunk > 500KB warning) — không thuộc scope.
+
 ## Trạng thái (Round 1)
 
 - [x] Plan
