@@ -70,8 +70,32 @@
 - [x] Server refactor + hardening + tests
 - [x] Client dedupe + theme + conversations + stop/regenerate + video polling fix
 - [x] Build `turbo build` green (server tsc + client tsc/vite)
-- [x] Tests green (server pure logic)
+- [x] Tests green (server pure logic: rate limiter 4 + secure compare 4 = 8/8)
 - [x] Commits nhỏ, conventional, local-only
+
+### Hoàn tất phần còn lại (2026-10-29, phiên tiếp nối)
+
+Phiên trước bị ngắt giữa chừng và để lại WIP chưa commit (`App.tsx`, `SettingsModal.tsx`,
+`Sidebar.tsx`) — trong đó `App.tsx` còn **lỗi cú pháp** (JSX expression chưa đóng `}` +
+`</SettingsProvider>` thiếu, lồng sai ThemedProvider/SettingsProvider). Đã sửa, hoàn thiện và
+verify:
+
+| # | Việc | Commit |
+|---|------|--------|
+| W1 | Sửa lỗi cú pháp App.tsx, wire `ThemeProvider` vào app root | 411bfa1 |
+| W2 | Hoàn tất SettingsModal a11y (Esc, autofocus, show/hide key, scroll lock) + Sidebar icon-rail responsive < `lg` + theme toggle | 411bfa1 |
+| W3 | Mobile conversation switcher cho Chat (rail `hidden md:flex` → trước đó không đổi được conversation trên mobile) | 63bf8c4 |
+| W4 | Focus trap Tab trong Settings dialog (đóng nốt R2-9) | a5c09cb |
+
+### Self-review cuối Round 2
+
+- Đã rà lại toàn bộ diff `a8280ca..HEAD`: không còn duplicate pattern, không log key,
+  mọi route proxy đi qua `forwardJson`/`forwardSse` chung (timeout + client-abort + 502).
+- **Cố ý giữ**: CodeBlock vẫn nền tối `#0d1117` + theme `github-dark` ở cả light mode —
+  pattern phổ biến (docs site), giữ 1 stylesheet highlight.js; đã ghi nhận, không phải bug.
+- **Không sửa (follow-up)**: rate limiter theo `req.ip` sẽ cần `app.set('trust proxy')`
+  nếu deploy sau reverse proxy; image results / video tasks chưa persist qua reload.
+- Build: `turbo build` green (2/2). Tests: `npm test` server 8/8 pass.
 
 ## Trạng thái (Round 1)
 
@@ -81,6 +105,13 @@
 - [x] Commit + self-review
 
 ## Review Log
+
+### Vòng 2 (Round 2 hoàn tất)
+- Phiên trước để WIP chưa commit kèm lỗi cú pháp trong App.tsx (thiếu `}`, thiếu
+  `</SettingsProvider>`, wrap sai thứ tự Provider). Đã sửa và chia thành commits riêng:
+  WIP hoàn tất (411bfa1), mobile conversation switcher (63bf8c4), focus trap (a5c09cb).
+- Self-review phát hiện thêm: `TextInput` import thừa trong SettingsModal (TS6133, đã bỏ);
+  conversation rail ẩn < md khiến chat conversation không thể truy cập trên mobile (đã fix).
 
 ### Vòng 1
 - Self-review: lỗi tự phát hiện trong bản fix — (1) đặt tên param `Response` của fetch trùng với type Express `Response` → `globalThis.Response`; (2) edit đầu viết `${t ? '' : ''}` với biến `t` không tồn tại + `sseBuffer.pop()` trên string → sửa thành `lines.pop()`; (3) chèn `negative_prompt` vào `extra_body` (đúng shape API upstream dùng extra_body cho extension fields, nhất quán với `image` field sẵn có). Pump stream: reader.cancel() khi client ngắt — upstream đóng, không leak.
