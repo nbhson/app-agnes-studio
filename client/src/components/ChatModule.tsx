@@ -403,6 +403,28 @@ export default function ChatModule() {
           }
           stats={<span className="hidden md:flex items-center gap-1"><BarChart3 size={12} /> {stats.totalTokens.toLocaleString()} tokens</span>}
         />
+        {/* Mobile conversation switcher — the rail is md+ only (R2-10 follow-up). */}
+        <div className="md:hidden px-4 py-2 border-b border-agnes-border flex items-center gap-2">
+          <MessageSquare size={14} className="text-agnes-muted shrink-0" aria-hidden="true" />
+          <select
+            value={activeId}
+            onChange={(e) => setActiveId(e.target.value)}
+            aria-label="Switch conversation"
+            className="flex-1 min-w-0 bg-agnes-surface border border-agnes-border rounded-lg px-3 py-2 text-sm text-agnes-text focus:outline-none focus:border-agnes-accent transition-colors"
+          >
+            {conversationList.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </select>
+          <button
+            onClick={newConversation}
+            aria-label="New conversation"
+            title="New conversation"
+            className="p-2 rounded-lg text-agnes-muted hover:text-agnes-heading hover:bg-agnes-card transition-colors shrink-0"
+          >
+            <Plus size={15} />
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {messages.length === 0 && (
             <EmptyState icon={Bot}>
