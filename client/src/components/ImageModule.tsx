@@ -1,7 +1,8 @@
-import { API_BASE_URL, apiHeaders } from '../config';
 import { useState } from 'react';
 import { Download, Loader2, Image as ImageIcon, Copy, Check, RefreshCw, BarChart3, Layers } from 'lucide-react';
 import { useSettings } from '../SettingsContext';
+import { postJson, parseUrlList } from '../lib/api';
+import { ModuleHeader, Field, TextArea, TextInput, ErrorBanner, EmptyState, SegmentedControl, StatChip } from './ui';
 
 type SizeOption = '1024x1024' | '1024x768' | '768x1024' | '1920x1080' | '1080x1920';
 
@@ -15,6 +16,14 @@ const SIZES: { value: SizeOption; label: string; desc: string; pixels: number }[
 
 type Mode = 'text-to-image' | 'image-to-image';
 
+interface ImageResult {
+  url: string;
+  b64: string;
+  revisedPrompt: string;
+  timestamp: number;
+  resolution: string;
+}
+
 export default function ImageModule() {
   const { hasApiKey } = useSettings();
   const [mode, setMode] = useState<Mode>('text-to-image');
@@ -23,7 +32,7 @@ export default function ImageModule() {
   const [negativePrompt, setNegativePrompt] = useState('');
   const [imageUrls, setImageUrls] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Array<{ url: string; b64: string; revisedPrompt: string; timestamp: number; resolution: string }>>([]);
+  const [results, setResults] = useState<ImageResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [totalImages, setTotalImages] = useState(0);
@@ -35,49 +44,34 @@ export default function ImageModule() {
     setLoading(true);
     setError(null);
 
-    const body: Record<string, unknown> = {
-      model: 'agnes-image-2.0-flash',
-      prompt: prompt.trim(),
-      size,
-      extra_body: {
-        response_format: 'url',
-      },
-    };
-
+    const extraBody: Record<string, unknown> = { response_format: 'url' };
     if (mode === 'image-to-image' && imageUrls.trim()) {
-      (body.extra_body as Record<string, unknown>).image = imageUrls.trim().split('\n').map((u: string) => u.trim()).filter(Boolean);
+      extraBody.image = parseUrlList(imageUrls);
     }
-
     if (negativePrompt.trim()) {
-      // Gửi đúng field `negative_prompt` của API — trước đây nối vào `prompt`,
-      // tức là NỘI DUNG CẦN TRÁNH được đưa vào làm prompt chính.
-      (body.extra_body as Record<string, unknown>).negative_prompt = negativePrompt.trim();
+      // Correct `negative_prompt` field — Round-1 fix #9 (used to be joined
+      // into the main prompt, inverting its meaning).
+      extraBody.negative_prompt = negativePrompt.trim();
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/v1/images/generations`, {
-        method: 'POST',
-        headers: apiHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(body),
+      const data = await postJson<{ data?: any[] }>('/v1/images/generations', {
+        model: 'agnes-image-2.0-flash',
+        prompt: prompt.trim(),
+        size,
+        extra_body: extraBody,
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(err.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const sizeInfo = SIZES.find(s => s.value === size)!;
-      const generated = (data.data || []).map((item: any) => ({
+      const sizeInfo = SIZES.find((s) => s.value === size)!;
+      const generated: ImageResult[] = (data.data || []).map((item: any) => ({
         url: item.url || '',
         b64: item.b64_json || '',
         revisedPrompt: item.revised_prompt || prompt.trim(),
         timestamp: Date.now(),
         resolution: sizeInfo.label,
       }));
-      setResults(prev => [...prev, ...generated]);
-      setTotalImages(prev => prev + generated.length);
-      setTotalPixels(prev => prev + generated.length * sizeInfo.pixels);
+      setResults((prev) => [...prev, ...generated]);
+      setTotalImages((prev) => prev + generated.length);
+      setTotalPixels((prev) => prev + generated.length * sizeInfo.pixels);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate image');
     } finally {
@@ -91,7 +85,7 @@ export default function ImageModule() {
     setTimeout(() => setCopiedUrl(null), 2000);
   };
 
-  const downloadImage = async (result: typeof results[0]) => {
+  const downloadImage = async (result: ImageResult) => {
     try {
       const imgUrl = result.url || `data:image/png;base64,${result.b64}`;
       const resp = await fetch(imgUrl);
@@ -105,92 +99,81 @@ export default function ImageModule() {
     } catch {}
   };
 
-  const currentSizeInfo = SIZES.find(s => s.value === size)!;
+  const currentSizeInfo = SIZES.find((s) => s.value === size)!;
 
   return (
-    <div className="flex h-full gap-4">
-      <div className="flex-1 flex flex-col">
-        <div className="px-6 py-4 border-b border-agnes-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-              <ImageIcon size={16} className="text-white" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-white">Image Generation</h2>
-              <p className="text-xs text-agnes-muted">agnes-image-2.0-flash</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-agnes-muted">
-            <span className="flex items-center gap-1"><BarChart3 size={12} /> {totalImages} images</span>
-            <span className="flex items-center gap-1"><Layers size={12} /> {(totalPixels / 1e6).toFixed(1)}M px</span>
-          </div>
-        </div>
+    <div className="flex h-full flex-col xl:flex-row">
+      <div className="flex-1 flex flex-col min-w-0">
+        <ModuleHeader
+          icon={ImageIcon}
+          gradient="from-cyan-500 to-blue-600"
+          title="Image Generation"
+          subtitle="agnes-image-2.0-flash"
+          stats={
+            <>
+              <StatChip icon={BarChart3}>{totalImages} images</StatChip>
+              <StatChip icon={Layers}>{(totalPixels / 1e6).toFixed(1)}M px</StatChip>
+            </>
+          }
+        />
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="space-y-4">
-            <div className="flex gap-2 p-1 bg-agnes-surface rounded-lg w-fit">
-              {(['text-to-image', 'image-to-image'] as Mode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    mode === m ? 'bg-agnes-card text-white shadow-sm' : 'text-agnes-muted hover:text-white'
-                  }`}
-                >
-                  {m === 'text-to-image' ? 'Text to Image' : 'Image to Image'}
-                </button>
-              ))}
-            </div>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          <div className="space-y-4 max-w-2xl">
+            <SegmentedControl
+              label="Generation mode"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'text-to-image', label: 'Text to Image' },
+                { value: 'image-to-image', label: 'Image to Image' },
+              ]}
+            />
 
             {mode === 'image-to-image' && (
-              <div>
-                <label className="block text-sm font-medium text-agnes-text mb-2">Input Image URLs (one per line)</label>
-                <textarea
+              <Field label="Input Image URLs (one per line)">
+                <TextArea
                   value={imageUrls}
                   onChange={(e) => setImageUrls(e.target.value)}
-                  placeholder="https://example.com/image1.png
-https://example.com/image2.png"
+                  placeholder={'https://example.com/image1.png\nhttps://example.com/image2.png'}
                   rows={3}
-                  className="w-full bg-agnes-surface border border-agnes-border rounded-lg px-4 py-3 text-sm text-white placeholder-agnes-muted/50 focus:outline-none focus:border-agnes-accent focus:ring-1 focus:ring-agnes-accent resize-none"
+                  aria-label="Input image URLs"
                 />
-              </div>
+              </Field>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-agnes-text mb-2">Prompt</label>
-              <textarea
+            <Field label="Prompt" htmlFor="img-prompt">
+              <TextArea
+                id="img-prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe the image you want to generate..."
                 rows={4}
-                className="w-full bg-agnes-surface border border-agnes-border rounded-lg px-4 py-3 text-sm text-white placeholder-agnes-muted/50 focus:outline-none focus:border-agnes-accent focus:ring-1 focus:ring-agnes-accent resize-none"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-agnes-text mb-2">Negative Prompt (optional)</label>
-              <input
+            <Field label="Negative Prompt (optional)" htmlFor="img-negative">
+              <TextInput
+                id="img-negative"
                 type="text"
                 value={negativePrompt}
                 onChange={(e) => setNegativePrompt(e.target.value)}
                 placeholder="What to avoid in the image..."
-                className="w-full bg-agnes-surface border border-agnes-border rounded-lg px-4 py-2.5 text-sm text-white placeholder-agnes-muted/50 focus:outline-none focus:border-agnes-accent focus:ring-1 focus:ring-agnes-accent"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-agnes-text mb-2">
-                Size · {currentSizeInfo.label} · {currentSizeInfo.desc} · {(currentSizeInfo.pixels / 1e6).toFixed(1)}MP
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {SIZES.map(s => (
+            <Field label={`Size · ${currentSizeInfo.label} · ${currentSizeInfo.desc} · ${(currentSizeInfo.pixels / 1e6).toFixed(1)}MP`}>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Image size">
+                {SIZES.map((s) => (
                   <button
                     key={s.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={size === s.value}
                     onClick={() => setSize(s.value)}
                     className={`px-3 py-2 rounded-lg border text-sm transition-all ${
                       size === s.value
                         ? 'border-agnes-accent bg-agnes-accent/20 text-agnes-accentLight'
-                        : 'border-agnes-border text-agnes-muted hover:text-white hover:border-agnes-accent/50'
+                        : 'border-agnes-border text-agnes-muted hover:text-agnes-heading hover:border-agnes-accent/50'
                     }`}
                   >
                     <div className="font-medium">{s.label}</div>
@@ -198,13 +181,9 @@ https://example.com/image2.png"
                   </button>
                 ))}
               </div>
-            </div>
+            </Field>
 
-            {error && (
-              <div className="px-4 py-3 rounded-lg bg-agnes-error/10 border border-agnes-error/30 text-sm text-agnes-error">
-                {error}
-              </div>
-            )}
+            {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
             <button
               onClick={handleGenerate}
@@ -227,17 +206,16 @@ https://example.com/image2.png"
         </div>
       </div>
 
-      <div className="w-80 flex flex-col border-l border-agnes-border">
+      <div className="w-full xl:w-80 flex flex-col border-t xl:border-t-0 xl:border-l border-agnes-border">
         <div className="px-4 py-3 border-b border-agnes-border flex items-center justify-between">
-          <h3 className="font-medium text-white text-sm">Results</h3>
+          <h3 className="font-medium text-agnes-heading text-sm">Results</h3>
           <span className="text-xs text-agnes-muted">{results.length} images</span>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {results.length === 0 && !loading && (
-            <div className="text-center py-8 opacity-40">
-              <ImageIcon size={32} className="mx-auto mb-2" />
+            <EmptyState icon={ImageIcon}>
               <p className="text-xs text-agnes-muted">Generated images will appear here</p>
-            </div>
+            </EmptyState>
           )}
 
           {loading && (
@@ -267,6 +245,7 @@ https://example.com/image2.png"
                     onClick={() => downloadImage(r)}
                     className="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
                     title="Download"
+                    aria-label="Download image"
                   >
                     <Download size={16} />
                   </button>
@@ -274,6 +253,7 @@ https://example.com/image2.png"
                     onClick={() => copyUrl(r.url || `data:image/png;base64,${r.b64}`)}
                     className="p-2 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
                     title="Copy URL"
+                    aria-label="Copy image URL"
                   >
                     {copiedUrl === r.url ? <Check size={16} className="text-agnes-success" /> : <Copy size={16} />}
                   </button>
@@ -290,3 +270,4 @@ https://example.com/image2.png"
     </div>
   );
 }
+
