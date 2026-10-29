@@ -13,6 +13,7 @@ export default function SettingsModal({ open, onClose }: Props) {
   const [input, setInput] = useState(apiKey);
   const [showKey, setShowKey] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset the draft each time the modal opens; focus the key field.
   useEffect(() => {
@@ -23,11 +24,31 @@ export default function SettingsModal({ open, onClose }: Props) {
     }
   }, [open, apiKey]);
 
-  // A11y (R2-9): Esc closes; also lock body scroll while open.
+  // A11y (R2-9): Esc closes; Tab is trapped inside the dialog; body scroll
+  // is locked while open.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab' && containerRef.current) {
+        const focusables = containerRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !containerRef.current.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !containerRef.current.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -52,7 +73,7 @@ export default function SettingsModal({ open, onClose }: Props) {
       aria-labelledby="settings-title"
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
-      <div className="relative bg-agnes-card border border-agnes-border rounded-2xl p-6 w-full max-w-md mx-4 animate-slide-up shadow-2xl">
+      <div ref={containerRef} className="relative bg-agnes-card border border-agnes-border rounded-2xl p-6 w-full max-w-md mx-4 animate-slide-up shadow-2xl">
         <h2 id="settings-title" className="text-xl font-semibold text-agnes-heading mb-1">Settings</h2>
         <p className="text-sm text-agnes-muted mb-6">Configure your Agnes API key</p>
 
