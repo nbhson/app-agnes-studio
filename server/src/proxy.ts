@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { config } from './config.js';
 
 /** Client-abort signal plus upstream timeout, combined. */
@@ -46,7 +46,6 @@ export async function forwardJson(
 /** Forward a JSON route that answers with an SSE stream; abort when the client disconnects. */
 export async function forwardSse(
   route: string,
-  req: Request,
   res: Response,
   url: string,
   headers: Record<string, string>,
@@ -56,8 +55,14 @@ export async function forwardSse(
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
+  // Round 4 fix: `req.on('close')` no longer means "client disconnected" on
+  // Node >= 16 — it fires as soon as the request body is fully consumed
+  // (verified empirically: fires ~1ms after express.json(), before this
+  // listener attaches, so the old handler was dead code and disconnects were
+  // never detected). `res.close` fires exactly once per response: normally
+  // after res.end() (writableEnded=true) or prematurely on client hangup.
   const clientGone = new AbortController();
-  req.on('close', () => {
+  res.on('close', () => {
     if (!res.writableEnded) clientGone.abort();
   });
 
