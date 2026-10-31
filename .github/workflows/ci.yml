@@ -12,5 +12,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build --if-present
-
+      - run: npm run typecheck --workspaces --if-present
+      - run: npm test --workspaces --if-present
+      - run: npm run build --workspaces --if-present

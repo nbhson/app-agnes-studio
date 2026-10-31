@@ -2,9 +2,12 @@
   "name": "agnes-studio",
   "private": true,
   "scripts": {
+    "lint": "eslint .",
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "start": "turbo run start"
+    "start": "turbo run start",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "packageManager": "npm@11.9.0",
   "workspaces": [
@@ -12,6 +15,11 @@
     "server"
   ],
   "devDependencies": {
-    "turbo": "^2.0.0"
+    "turbo": "^2.0.0",
+    "eslint": "^9",
+    "@eslint/js": "^9",
+    "typescript-eslint": "^8",
+    "globals": "^15",
+    "eslint-plugin-react-hooks": "^5"
   }
 }

@@ -1,5 +1,7 @@
 # Agnes AI Studio
 
+[![CI](https://github.com/nbhson/app-agnes-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/nbhson/app-agnes-studio/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A modern web UI for interacting with the Agnes AI API — chat, image generation, and video generation in one app.
 
 ## Features
